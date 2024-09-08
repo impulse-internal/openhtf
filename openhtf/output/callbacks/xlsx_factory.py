@@ -1,0 +1,149 @@
+"""Module for outputting test record to XLS files."""
+
+from openhtf.core import test_record
+from openhtf.output import callbacks
+from openhtf.util import data
+import six
+from io import StringIO
+import pandas as pd
+from collections import OrderedDict
+import datetime
+
+
+class OutputToXLSX(callbacks.OutputToFile):
+    """Return an output callback that writes Excel Test Records.
+
+    Example filename_patterns might be:
+      '/data/test_records/{dut_id}.{metadata[test_name]}.xls', indent=4)) or
+      '/data/test_records/%(dut_id)s.%(start_time_millis)s'
+    To use this output mechanism:
+      test = openhtf.Test(PhaseOne, PhaseTwo)
+      test.add_output_callback(openhtf.output.callbacks.OutputToXLS(
+          '/data/test_records/{dut_id}.{metadata[test_name]}.xls'))
+
+    Args:
+      filename_pattern: A format string specifying the filename to write to. Must end with ".xlsx"
+    """
+
+    def __init__(self, filename_pattern=None, inline_attachments=True, **kwargs):
+        if not filename_pattern.endswith(".xlsx"):
+            raise AssertionError(
+                "Invalid filename pattern: %s" % repr(filename_pattern)
+            )
+        super(OutputToXLSX, self).__init__(filename_pattern)
+        self.inline_attachments = inline_attachments
+
+    def validators_to_limits(self, validators):
+        low_lim = None
+        high_lim = None
+        if len(validators) == 1:
+            v = validators[0].split(" ")
+            if v[1] == "<=" and v[2] == "x":
+                low_lim = float(v[0])
+            if v[0] == "x" and v[1] == "<=":
+                high_lim = float(v[2])
+            if len(v) == 5:
+                if v[2] == "x" and v[3] == "<=":
+                    high_lim = float(v[4])
+
+        return (low_lim, high_lim)
+
+    def write_sheets(self, test_record, writer):
+        rec = self.convert_to_dict(test_record)
+        start_t_ms = rec["start_time_millis"]
+        start_t_date = datetime.datetime.fromtimestamp(start_t_ms / 1000.0)
+        header_dict = OrderedDict(
+            [
+                ("Test Name", [rec["metadata"]["test_name"]]),
+                ("Test Station", [rec["station_id"]]),
+                ("DUT ID", [rec["dut_id"]]),
+                ("Start Time", [start_t_date]),
+                ("Start Time (ms)", [start_t_ms]),
+            ]
+        )
+        df = pd.DataFrame.from_dict(header_dict)
+        df.to_excel(writer, sheet_name="Test Record", index=False)
+
+        xls_dict = OrderedDict(
+            [
+                ("Measurement", []),
+                ("Value", []),
+                ("Low Limit", []),
+                ("High Limit", []),
+                ("Pass/Fail", []),
+            ]
+        )
+
+        # Iterate throuhg the measurements and build them into a table
+        phases = rec["phases"]
+        for phase in phases:
+            measurements = phase["measurements"]
+            for m in measurements:
+                value = measurements[m]["measured_value"]
+                if "validators" in measurements[m]:
+                    v = measurements[m]["validators"]
+                else:
+                    v = []
+                (low_lim, high_lim) = self.validators_to_limits(v)
+                pass_fail = measurements[m]["outcome"]
+                xls_dict["Value"].append(value)
+                xls_dict["Measurement"].append(m)
+                xls_dict["Low Limit"].append(low_lim)
+                xls_dict["High Limit"].append(high_lim)
+                xls_dict["Pass/Fail"].append(pass_fail)
+
+        df = pd.DataFrame.from_dict(xls_dict)
+        df.to_excel(writer, sheet_name="Test Record", startrow=3, index=False)
+
+        # Insert any csv attachments as extra sheets
+        phases = rec["phases"]
+        for phase in phases:
+            attachments = phase["attachments"]
+            for a in attachments:
+                if a.endswith(".csv"):
+                    csv_data = attachments[a].data.decode("utf-8")
+                    df = pd.read_csv(StringIO(csv_data))
+                    df.to_excel(writer, sheet_name=a.replace(".csv", ""), index=False)
+
+        # Insert tester logs as a sheet
+        log_fields = [
+            "level",
+            "logger_name",
+            "source",
+            "lineno",
+            "timestamp_millis",
+            "millis_since_test_start",
+            "message",
+        ]
+        log_dict = OrderedDict()
+        for f in log_fields:
+            log_dict[f] = []
+
+        logs = rec["log_records"]
+        for log in logs:
+            for f in log_fields:
+                if f == "millis_since_test_start":
+                    # Add column for times from test start
+                    log_dict[f].append(
+                        log["timestamp_millis"] - rec["start_time_millis"]
+                    )
+                else:
+                    log_dict[f].append(log[f])
+
+        df = pd.DataFrame.from_dict(log_dict)
+        df.to_excel(writer, sheet_name="Test Logs", index=False)
+
+        return str(xls_dict)
+
+    def convert_to_dict(self, test_record):
+        as_dict = data.convert_to_base_types(test_record)
+        if self.inline_attachments:
+            for phase, original_phase in zip(as_dict["phases"], test_record.phases):
+                for name, attachment in six.iteritems(original_phase.attachments):
+                    phase["attachments"][name] = attachment
+        return as_dict
+
+    def __call__(self, test_record):
+        filename = self.create_file_name(test_record)
+        with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
+            self.write_sheets(test_record, writer)
