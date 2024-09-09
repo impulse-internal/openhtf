@@ -49,6 +49,14 @@ class OutputToXLSX(callbacks.OutputToFile):
         return (low_lim, high_lim)
 
     def write_sheets(self, test_record, writer):
+        logs_sheet_name = "Test Logs"
+        test_rec_sheet_name = "Test Record"
+
+        # Defining cell format
+        workbook = writer.book
+        cell_format = workbook.add_format()
+        cell_format.set_align("left")
+
         rec = self.convert_to_dict(test_record)
         start_t_ms = rec["start_time_millis"]
         start_t_date = datetime.datetime.fromtimestamp(start_t_ms / 1000.0)
@@ -59,10 +67,11 @@ class OutputToXLSX(callbacks.OutputToFile):
                 ("DUT ID", [rec["dut_id"]]),
                 ("Start Time", [start_t_date]),
                 ("Start Time (ms)", [start_t_ms]),
+                ("Test Result", [rec["outcome"]]),
             ]
         )
         df = pd.DataFrame.from_dict(header_dict)
-        df.to_excel(writer, sheet_name="Test Record", index=False)
+        df.to_excel(writer, sheet_name=test_rec_sheet_name, index=False)
 
         xls_dict = OrderedDict(
             [
@@ -93,7 +102,7 @@ class OutputToXLSX(callbacks.OutputToFile):
                 xls_dict["Pass/Fail"].append(pass_fail)
 
         df = pd.DataFrame.from_dict(xls_dict)
-        df.to_excel(writer, sheet_name="Test Record", startrow=3, index=False)
+        df.to_excel(writer, sheet_name=test_rec_sheet_name, startrow=3, index=False)
 
         # Insert any csv attachments as extra sheets
         phases = rec["phases"]
@@ -103,7 +112,10 @@ class OutputToXLSX(callbacks.OutputToFile):
                 if a.endswith(".csv"):
                     csv_data = attachments[a].data.decode("utf-8")
                     df = pd.read_csv(StringIO(csv_data))
-                    df.to_excel(writer, sheet_name=a.replace(".csv", ""), index=False)
+                    data_sheet_name = a.replace(".csv", "")
+                    df.to_excel(writer, sheet_name=data_sheet_name, index=False)
+                    data_sheet = writer.sheets[data_sheet_name]
+                    data_sheet.set_column(0, 10, 15, cell_format)
 
         # Insert tester logs as a sheet
         log_fields = [
@@ -131,7 +143,17 @@ class OutputToXLSX(callbacks.OutputToFile):
                     log_dict[f].append(log[f])
 
         df = pd.DataFrame.from_dict(log_dict)
-        df.to_excel(writer, sheet_name="Test Logs", index=False)
+        df.to_excel(writer, sheet_name=logs_sheet_name, index=False)
+
+        logs_sheet = writer.sheets[logs_sheet_name]
+        column_widths = [10, 30, 30, 10, 20, 20, 100]
+        for col, width in enumerate(column_widths):
+            logs_sheet.set_column(col, col, width, cell_format)
+
+        test_rec_sheet = writer.sheets[test_rec_sheet_name]
+        column_widths = [30, 20, 20, 20, 20, 20]
+        for col, width in enumerate(column_widths):
+            test_rec_sheet.set_column(col, col, width, cell_format)
 
         return str(xls_dict)
 
