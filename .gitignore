@@ -44,3 +44,7 @@ other_modules/
 
 # Tox temporary files
 .tox/
+
+# Excel files
+*.xls
+*.xlsx
