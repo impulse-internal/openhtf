@@ -167,5 +167,6 @@ class OutputToXLSX(callbacks.OutputToFile):
 
     def __call__(self, test_record):
         filename = self.create_file_name(test_record)
-        with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
-            self.write_sheets(test_record, writer)
+        if test_record.dut_io not in ["exit", "quit", "EXIT", "QUIT"]:
+            with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
+                self.write_sheets(test_record, writer)
