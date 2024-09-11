@@ -38,8 +38,12 @@ def attach_csv(test):
     test.attach("example_data.csv", csv.encode("utf-8"))
 
 
+def attach_png(test):
+    test.attach_from_file("./example_image.png")
+
+
 if __name__ == "__main__":
-    test = htf.Test(numeric_phase, attach_csv, test_name="Excel Test")
+    test = htf.Test(numeric_phase, attach_csv, attach_png, test_name="Excel Test")
 
     test.add_output_callbacks(
         xlsx_factory.OutputToXLSX(
