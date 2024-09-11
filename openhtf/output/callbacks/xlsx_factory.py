@@ -5,9 +5,11 @@ from openhtf.output import callbacks
 from openhtf.util import data
 import six
 from io import StringIO
+from io import BytesIO
 import pandas as pd
 from collections import OrderedDict
 import datetime
+import base64
 
 
 class OutputToXLSX(callbacks.OutputToFile):
@@ -115,7 +117,15 @@ class OutputToXLSX(callbacks.OutputToFile):
                     df.to_excel(writer, sheet_name=data_sheet_name, index=False)
                     data_sheet = writer.sheets[data_sheet_name]
                     data_sheet.set_column(0, 10, 15, cell_format)
-
+                if a.endswith(".png"):
+                    try:
+                        print("image: %s" % a)
+                        attachment = attachments[a]
+                        image_data = BytesIO(attachment.data)
+                        image_sheet = workbook.add_worksheet(a)
+                        image_sheet.insert_image("A1", a, {"image_data": image_data})
+                    except Exception as e:
+                        print(e)
         # Insert tester logs as a sheet
         log_fields = [
             "level",
