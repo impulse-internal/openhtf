@@ -45,7 +45,6 @@ class OutputToXLSX(callbacks.OutputToFile):
             if len(v) == 5:
                 if v[2] == "x" and v[3] == "<=":
                     high_lim = float(v[4])
-
         return (low_lim, high_lim)
 
     def write_sheets(self, test_record, writer):
@@ -167,6 +166,6 @@ class OutputToXLSX(callbacks.OutputToFile):
 
     def __call__(self, test_record):
         filename = self.create_file_name(test_record)
-        if test_record.dut_io not in ["exit", "quit", "EXIT", "QUIT"]:
+        if test_record.dut_id not in ["exit", "quit", "EXIT", "QUIT"]:
             with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
                 self.write_sheets(test_record, writer)
