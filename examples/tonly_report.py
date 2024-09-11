@@ -40,7 +40,10 @@ def attach_csv(test):
 
 if __name__ == "__main__":
     test = htf.Test(
-        numeric_phase, attach_csv, test_name="Excel Test", test_version="1.2.3"
+        numeric_phase,
+        attach_csv,
+        test_name="Tonly_Example_Report",
+        test_version="1.2.3",
     )
 
     test.add_output_callbacks(

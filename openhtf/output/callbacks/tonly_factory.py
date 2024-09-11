@@ -94,15 +94,15 @@ class OutputToTonly(callbacks.OutputToFile):
             report.write("程序版本：unknown\n")
 
         # Config file - not implemented
-        report.write("配置文件: Not Implemented\n")
+        report.write("配置文件：Not Implemented\n")
 
         # Config file verification
-        report.write("配置文件校验: Not Implemented\n")
+        report.write("配置文件校验：Not Implemented\n")
 
         self.section_break(report)
 
         # Batch number?
-        report.write("程序设置的批次号：\n")
+        report.write("程序设置的批次号：%s\n" % test_record.dut_id)
 
         # Model name?
         report.write("程序设置的机型名：\n")
@@ -111,7 +111,7 @@ class OutputToTonly(callbacks.OutputToFile):
         report.write("程序设置的组件号：\n")
 
         # Station name
-        report.write("程序设置的工站名：\n")
+        report.write("程序设置的工站名：%s\n" % rec["metadata"]["test_name"])
 
         # Computer name + MAC
         mac = getnode()
@@ -125,17 +125,17 @@ class OutputToTonly(callbacks.OutputToFile):
 
         # Test start time
         start_t_str = self.timestamp_ms_to_date_str(test_record.start_time_millis)
-        report.write("开始测试时间: ")
+        report.write("开始测试时间：")
         report.write(start_t_str + "\n")
 
         # Test end time
         end_t_str = self.timestamp_ms_to_date_str(test_record.end_time_millis)
-        report.write("结束测试时间: ")
+        report.write("结束测试时间：")
         report.write(end_t_str + "\n")
 
         # Test duration in seconds
         duration_ms = test_record.end_time_millis - test_record.start_time_millis
-        report.write("总的测试时间: ")
+        report.write("总的测试时间：")
         report.write("%0.1f S\n" % (duration_ms / 1000.0))
 
         self.long_break(report)
@@ -146,32 +146,36 @@ class OutputToTonly(callbacks.OutputToFile):
         report.write(start_t_str + "\n")
         self.linefeed(report)
         report.write("Test Start !\n")
-        self.phase_break(report)
 
         # Print out the phases one by one
         phases = rec["phases"]
-        print(phases)
-        print("")
-        report.write("phases\n")
         for phase in phases:
+            self.phase_break(report)
+            start_t = phase["start_time_millis"]
+            end_t = phase["end_time_millis"]
+            start_t_str = self.timestamp_ms_to_date_str(start_t)
+            report.write(start_t_str + "\n")
+            self.linefeed(report)
             measurements = phase["measurements"]
             for m in measurements:
-                print("measurement: %s" % m)
-                report.write("boop\n")
-                report.write("measurement: %s" % m)
                 value = measurements[m]["measured_value"]
+                pass_fail = measurements[m]["outcome"]
                 if "validators" in measurements[m]:
                     v = measurements[m]["validators"]
+                    report.write("%s: %s (%s) - %s\n" % (m, value, v[0], pass_fail))
                 else:
-                    v = []
-                (low_lim, high_lim) = self.validators_to_limits(v)
-                pass_fail = measurements[m]["outcome"]
+                    report.write("%s: %s - %s\n" % (m, value, pass_fail))
+            self.linefeed(report)
+            dt = float(end_t - start_t) / 1000.0
+            report.write("StepTime:%0.3f\n" % dt)
+            self.linefeed(report)
+            outcome = phase["outcome"]
+            if outcome == "PASS":
+                report.write("Info: %s   Successful!\n" % phase["name"])
+            else:
+                report.write("Info: %s   Failure!\n" % phase["name"])
 
-                # report.write("%s: %f (%s) - %s\n" % (m, value, v, pass_fail))
-
-        report.write(test_record.dut_id + "\n")
-        report.write("bloop\n")
-        report.write("blop\n")
+        self.phase_break(report)
 
     def convert_to_dict(self, test_record):
         return data.convert_to_base_types(test_record)
