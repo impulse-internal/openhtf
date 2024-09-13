@@ -57,14 +57,25 @@ class OutputToXLSX(callbacks.OutputToFile):
         workbook = writer.book
         cell_format = workbook.add_format()
         cell_format.set_align("left")
+        cell_format.set_font_name("Calibri")
 
         rec = self.convert_to_dict(test_record)
         start_t_ms = rec["start_time_millis"]
         start_t_date = datetime.datetime.fromtimestamp(start_t_ms / 1000.0)
+        try:
+            test_name = rec["metadata"]["test_name"]
+        except:
+            test_version = "Unset"
+        try:
+            test_version = rec["metadata"]["test_version"]
+        except:
+            test_version = "Unset"
+
         header_dict = OrderedDict(
             [
-                ("Test Name", [rec["metadata"]["test_name"]]),
+                ("Test Name", test_name),
                 ("Test Station", [rec["station_id"]]),
+                ("Software Version", test_version),
                 ("DUT ID", [rec["dut_id"]]),
                 ("Start Time", [start_t_date]),
                 ("Start Time (ms)", [start_t_ms]),
@@ -73,6 +84,38 @@ class OutputToXLSX(callbacks.OutputToFile):
         )
         df = pd.DataFrame.from_dict(header_dict)
         df.to_excel(writer, sheet_name=test_rec_sheet_name, index=False)
+
+        # Add conditional formatting to the sheet for PASS / FAIL
+
+        # Add formats to the workbook
+        # Light red fill with dark red text.
+        fail_format = workbook.add_format(
+            {"bg_color": "#FFC7CE", "font_color": "#9C0006"}
+        )
+        # Light green fill with dark green text.
+        pass_format = workbook.add_format(
+            {"bg_color": "#C6EFCE", "font_color": "#006100"}
+        )
+
+        # Write a conditional formats to the records sheet.
+        writer.sheets[test_rec_sheet_name].conditional_format(
+            "A1:Z1000",
+            {
+                "type": "cell",
+                "criteria": "==",
+                "value": '"PASS"',
+                "format": pass_format,
+            },
+        )
+        writer.sheets[test_rec_sheet_name].conditional_format(
+            "A1:Z1000",
+            {
+                "type": "cell",
+                "criteria": "==",
+                "value": '"FAIL"',
+                "format": fail_format,
+            },
+        )
 
         xls_dict = OrderedDict(
             [
@@ -160,7 +203,7 @@ class OutputToXLSX(callbacks.OutputToFile):
             logs_sheet.set_column(col, col, width, cell_format)
 
         test_rec_sheet = writer.sheets[test_rec_sheet_name]
-        column_widths = [30, 20, 20, 20, 20, 20]
+        column_widths = [30, 20, 20, 20, 20, 20, 20]
         for col, width in enumerate(column_widths):
             test_rec_sheet.set_column(col, col, width, cell_format)
 
@@ -178,4 +221,7 @@ class OutputToXLSX(callbacks.OutputToFile):
         filename = self.create_file_name(test_record)
         if test_record.dut_id not in ["exit", "quit", "EXIT", "QUIT"]:
             with pd.ExcelWriter(filename, engine="xlsxwriter") as writer:
-                self.write_sheets(test_record, writer)
+                try:
+                    self.write_sheets(test_record, writer)
+                except Exception as e:
+                    print(e)
