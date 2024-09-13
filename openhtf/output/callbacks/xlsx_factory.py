@@ -57,6 +57,7 @@ class OutputToXLSX(callbacks.OutputToFile):
         workbook = writer.book
         cell_format = workbook.add_format()
         cell_format.set_align("left")
+        cell_format.set_font_name("Calibri")
 
         rec = self.convert_to_dict(test_record)
         start_t_ms = rec["start_time_millis"]
