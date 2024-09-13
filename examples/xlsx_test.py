@@ -43,7 +43,13 @@ def attach_png(test):
 
 
 if __name__ == "__main__":
-    test = htf.Test(numeric_phase, attach_csv, attach_png, test_name="Excel Test")
+    test = htf.Test(
+        numeric_phase,
+        attach_csv,
+        attach_png,
+        test_name="Excel Test",
+        test_version="1.2.3",
+    )
 
     test.add_output_callbacks(
         xlsx_factory.OutputToXLSX(
